@@ -77,13 +77,6 @@
       "metadata": {
         "description": "Location for all resources."
       }
-    },
-    "availabilitySetName": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "The name of the Availability Set to put the VMs in."
-      }
     }
   },
   "variables": {
@@ -92,9 +85,22 @@
     "imageOffer": "WindowsServer",
     "windowsOSVersion": "2016-Datacenter",
     "nicName": "[concat(parameters('dnsLabelPrefix'),'Nic')]",
+    "publicIPName": "[concat(parameters('dnsLabelPrefix'),'Pip')]",
     "subnetId": "[resourceId(resourceGroup().name, 'Microsoft.Network/virtualNetworks/subnets', parameters('existingVNETName'), parameters('existingSubnetName'))]"
   },
   "resources": [
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[variables('publicIPName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "dnsSettings": {
+          "domainNameLabel": "[parameters('dnsLabelPrefix')]"
+        }
+      }
+    },
     {
       "apiVersion": "2015-06-15",
       "type": "Microsoft.Storage/storageAccounts",
@@ -109,12 +115,18 @@
       "type": "Microsoft.Network/networkInterfaces",
       "name": "[variables('nicName')]",
       "location": "[parameters('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPName'))]"
+      ],
       "properties": {
         "ipConfigurations": [
           {
             "name": "ipconfig",
             "properties": {
               "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPName'))]"
+              },
               "subnet": {
                 "id": "[variables('subnetId')]"
               }
@@ -133,9 +145,6 @@
         "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
       ],
       "properties": {
-        "availabilitySet": {
-          "id": "[resourceId('Microsoft.Compute/availabilitySets', parameters('availabilitySetName'))]"
-        },
         "hardwareProfile": {
           "vmSize": "[parameters('vmSize')]"
         },
@@ -155,7 +164,16 @@
             "name": "[concat(parameters('dnsLabelPrefix'),'_OsDisk')]",
             "caching": "ReadWrite",
             "createOption": "FromImage"
-          }
+          },
+          "dataDisks": [
+            {
+              "name": "[concat(parameters('dnsLabelPrefix'),'_dataDisk1')]",
+              "caching": "None",
+              "createOption": "Empty",
+              "diskSizeGB": "1000",
+              "lun": 0
+            }
+          ]
         },
         "networkProfile": {
           "networkInterfaces": [
